@@ -153,7 +153,7 @@ let
       #!/usr/bin/env bash
 
       # this script need to be run with root or having sudo permission
-      [ $EUID -ne 0 ] && ! sudo -v >/dev/null 2>&1 && echo "need to run with root or sudo" && exit 127
+      [ $EUID -ne 0 ] && ! sudo echo >/dev/null 2>&1 && echo "need to run with root or sudo without password" && exit 127
 
       # some command fix up for systemd service, especially web server
       getent group nogroup > /dev/null || sudo groupadd nogroup
@@ -210,7 +210,7 @@ let
       #!/usr/bin/env bash
 
       # this script need to be run with root or having sudo permission
-      [ $EUID -ne 0 ] && ! sudo -v >/dev/null 2>&1 && echo "need to run with root or sudo" && exit 127
+      [ $EUID -ne 0 ] && ! sudo echo >/dev/null 2>&1 && echo "need to run with root or sudo without password" && exit 127
 
       # check to make sure we are running this cleanup script after deploy script
       alreadyDeployed=""
@@ -241,7 +241,7 @@ let
       echo "If your are looking for how to start/start the program,"
       echo "Refer to the following command"
       ${lib.concatStringsSep "\n" (if env.isSystemdService then [''
-        serviceNames=$(awk 'BEGIN { FS="\"" } /unitsToStop\+\=\(/ {print $2}' ${payloadPath}/bin/unsetup-systemd-units)
+        serviceNames=$(awk 'BEGIN { FS="\"" } /unitsToStop\+=\(/ {print $2}' ${payloadPath}/bin/unsetup-systemd-units)
         echo "To stop - sudo systemctl stop <service-name>"
         echo "To start - sudo systemctl start <service-name>"
         echo "Where <service-name> is one of $serviceNames"
