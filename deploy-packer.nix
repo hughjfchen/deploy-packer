@@ -105,7 +105,7 @@ let
       '';
     in pkgs.writeScriptBin "mk-release-packer-for-${site}-${phase}" ''
       #!${pkgs.bash}/bin/bash -e
-      export PATH=${pkgs.coreutils}/bin:${pkgs.gnutar}/bin:${pkgs.gzip}/bin
+      export PATH=${pkgs.coreutils}/bin:${pkgs.gnutar}/bin:${pkgs.gzip}/bin:${pkgs.gawk}/bin:${pkgs.findutils}/bin:${pkgs.gnused}/bin:${pkgs.makeself}/bin
 
       fileListToPack="${referencePath}"
 
@@ -130,15 +130,27 @@ let
 
       # pack the previous tarball and the two scripts for distribution
       packDirTemp=$(mktemp -d)
-      cp "${deployScript}" $packDirTemp/deploy-${component}-to-${site}-${phase}
-      cp "${cleanupScript}" $packDirTemp/cleanup-${component}-on-${site}-${phase}
-      mv ./${innerTarballName}  $packDirTemp
-      tar zcf ./${namespace}-dist.tar.gz \
-        -C $packDirTemp \
-        deploy-${component}-to-${site}-${phase} \
-        cleanup-${component}-on-${site}-${phase} \
-        ${innerTarballName}
-      rm -fr $packDirTemp
+
+      # add timestamp to the directory name and final tarball name
+      # to avoid overwrite, that would make it eay to rollback to
+      # any previous deployed version
+      currentTimeStamp=$(date "+%Y%m%d%H%M%S")
+      packDirWithTS="${namespace}-dist-$currentTimeStamp"
+      packDirWithTSFull="$packDirTemp/$packDirWithTS"
+      mkdir -p "$packDirWithTSFull"
+      cp "${deployScript}" "$packDirWithTSFull/deploy-${component}-to-${site}-${phase}"
+      cp "${cleanupScript}" "$packDirWithTSFull/cleanup-${component}-on-${site}-${phase}"
+      mv "./${innerTarballName}"  "$packDirWithTSFull"
+
+      # tar zcf "./$packDirWithTS.tar.gz" \
+      #   -C "$packDirTemp" \
+      #   "packDirWithTS"
+
+      # use makeself instead
+      makeself --gzip --current "$packDirTemp" "./$packDirWithTS.run" \
+               "Deploy ${component} to ${site} ${phase} environment" \
+               "$packDirWithTS/deploy-${component}-to-${site}-${phase}"
+      rm -fr "$packDirTemp"
 
     '';
   mk-deploy-sh =
@@ -172,8 +184,14 @@ let
       done
 
       # now unpack(note we should preserve the /nix/store directory structure)
-      sudo tar zPxf ./${innerTarballName}
+
+      # determine the PWD
+      [ -n "USER_PWD" ] && MYPWD="$USER_PWD/$(dirname $0)" || MYPWD="."
+
+      sudo tar zPxf "$MYPWD"/${innerTarballName}
       sudo chown -R ${env.processUser}:${env.processUser} /nix
+      sudo chmod 555 /nix
+      sudo chmod 555 /nix/store
 
       # setup the systemd service or create a link to the executable
       ${lib.concatStringsSep "\n" (if env.isSystemdService then
@@ -181,8 +199,9 @@ let
       else [''
         # there is a previous version here, stop it first
         if [ -e ${env.runDir}/stop.sh ]; then
-          echo "stopping ${execName}"
-          ${env.runDir}/stop.sh
+          # do not do any output, because the app may rely on its output to function properly
+          # echo "stopping ${execName}"
+          ${env.runDir}/stop.sh "$@"
         fi
 
         # since the payload path changed for every deployment,
@@ -195,10 +214,14 @@ let
           echo "#!/usr/bin/env bash"
           echo "exec ${payloadPath}/bin/${execName} ${stopCmd} \"\$@\""
         } > ${env.runDir}/stop.sh
+        sudo chown -R ${env.processUser}:${env.processUser} "${env.runDir}"
+
         chmod +x ${env.runDir}/start.sh ${env.runDir}/stop.sh
-        echo "starting the program ${execName}"
-        ${env.runDir}/start.sh
-        echo "check the scripts under ${env.runDir} to start or stop the program."''])}
+        # do not do any output, because the app may rely on its output to function properly
+        # echo "starting the program ${execName}"
+        ${env.runDir}/start.sh "$@"
+        # do not do any output, because the app may rely on its output to function properly
+        # echo "check the scripts under ${env.runDir} to start or stop the program."''])}
 
     '';
   mk-cleanup-sh = { env # the environment for the deployment target machine
@@ -257,7 +280,7 @@ let
       ${lib.concatStringsSep "\n" (if env.isSystemdService then [''
         sudo ${payloadPath}/bin/unsetup-systemd-units
       ''] else
-        [ "${env.runDir}/stop.sh" ])}
+        [ "${env.runDir}/stop.sh $@" ])}
 
       for dirToRm in "${env.runDir}" "${env.dataDir}"
       do
@@ -268,10 +291,14 @@ let
 
       # do we need to delete the program and all its dependencies in /nix/store?
       # we will do that for now
-      if [ -f "./${innerTarballName}" ]; then
-        tar zPtvf "./${innerTarballName}"|awk '{print $NF}'|grep '/nix/store/'|awk -F'/' '{print "/nix/store/" $4}'|sort|uniq|xargs sudo rm -fr
+
+      # determine the PWD
+      [ -n "USER_PWD" ] && MYPWD="$USER_PWD/$(dirname $0)" || MYPWD="."
+
+      if [ -f "$MYPWD/${innerTarballName}" ]; then
+        tar zPtvf "$MYPWD/${innerTarballName}"|awk '{print $NF}'|grep '/nix/store/'|awk -F'/' '{print "/nix/store/" $4}'|sort|uniq|xargs sudo rm -fr
       else
-        echo "cannot find the release tarball ./${innerTarballName}, skip cleaning the distribute files."
+        echo "cannot find the release tarball $MYPWD/${innerTarballName}, skip cleaning the distribute files."
       fi
 
       # well, shall we remove the user and group? maybe not
