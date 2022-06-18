@@ -186,7 +186,7 @@ let
       # now unpack(note we should preserve the /nix/store directory structure)
 
       # determine the PWD
-      [ -n "USER_PWD" ] && MYPWD="$USER_PWD/$(dirname $0)" || MYPWD="."
+      [ "X$USER_PWD" != "X" ] && MYPWD="$USER_PWD/$(dirname $0)" || MYPWD="$(dirname $0)"
 
       sudo tar zPxf "$MYPWD"/${innerTarballName}
       sudo chown -R ${env.processUser}:${env.processUser} /nix
@@ -293,7 +293,7 @@ let
       # we will do that for now
 
       # determine the PWD
-      [ -n "USER_PWD" ] && MYPWD="$USER_PWD/$(dirname $0)" || MYPWD="."
+      [ "X$USER_PWD" != "X" ] && MYPWD="$USER_PWD/$(dirname $0)" || MYPWD="$(dirname $0)"
 
       if [ -f "$MYPWD/${innerTarballName}" ]; then
         tar zPtvf "$MYPWD/${innerTarballName}"|awk '{print $NF}'|grep '/nix/store/'|awk -F'/' '{print "/nix/store/" $4}'|sort|uniq|xargs sudo rm -fr
