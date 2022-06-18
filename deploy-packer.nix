@@ -147,7 +147,7 @@ let
       #   "packDirWithTS"
 
       # use makeself instead
-      makeself --gzip --current "$packDirTemp" "./$packDirWithTS.run" \
+      makeself --gzip --current "$packDirTemp" "./$packDirWithTS.sh" \
                "Deploy ${component} to ${site} ${phase} environment" \
                "$packDirWithTS/deploy-${component}-to-${site}-${phase}"
       rm -fr "$packDirTemp"
