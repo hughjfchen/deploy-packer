@@ -1,0 +1,268 @@
+#+title: Readme
+
+* Notice
+This is one of my ~release framework based on nix~ which contains following:
+- [[https://github.com/hughjfchen/deploy-env][deploy-env]]
+- [[https://github.com/hughjfchen/deploy-config][deploy-config]]
+- [[https://github.com/hughjfchen/deploy-packer][deploy-packer(that is the repo)]]
+
+* What is this
+This is a NixOS module which evalues to application component config for the deployment target
+based on the specified directory structure.
+
+* What is this for
+This module is the most important building block for the deployment solution based on
+nix. It will provide the config of the each application components for the deployment target machine.
+It needs the [[https://github.com/hughjfchen/deploy-env][deploy-env]] as the input and evalue the result as an input to the [[https://github.com/hughjfchen/deploy-packer][deploy-packer]].
+
+* Options
+This module defines config for some common components of an application.
+
+** db
+The ~db~ module is based on ~postgresql~ and has the following options:
+
+| option             | type | default                  | descriptio                                |
+|--------------------+------+--------------------------+-------------------------------------------|
+| host               | str  | null                     | hostName                                  |
+| port               | int  | 5432                     | DNS Name                                  |
+| database           | str  | null                     | the database nmae                         |
+| dataSchema         | str  | null                     | the schema name for data                  |
+| dataSchemaUser     | bool | true                     | the user name to access the data schema   |
+| dataSchemaPassword | str  | /var/${processUser}/run  | the password to access to the data schema |
+| apiSchema          | str  | /var/${processUser}/data | the schema name for api                   |
+| apiSchemaUser      |      |                          | the user name to access the api schema    |
+| apiSchemaPassword  |      |                          | the password access to the api schema     |
+| anonRole           |      |                          | the ananymous role name                   |
+| jwtSecret          |      |                          | the secret for JWT token                  |
+| jwtLifeTime        |      |                          | the life timeout for the JWT token        |
+|--------------------+------+--------------------------+-------------------------------------------|
+
+These options are declared in the ~db.nix~ file under the top level directory.
+
+** db-gateway
+The ~db-gateway~ is based on ~postgrest~ and has the following options:
+
+| option       | type | default                 | descriptio                                     |
+|--------------+------+-------------------------+------------------------------------------------|
+| db-uri       | str  | null                    | the URI to access the postgresql database      |
+| db-schem     | str  | null                    | the schema name                                |
+| db-anon-role | str  | null                    | the anonymous role name                        |
+| jwt-secret   | str  | null                    | the secret to generate the JWT token           |
+| server-host  | bool | true                    | the db-gateway service host name or IP address |
+| server-port  | str  | /var/${processUser}/run | the db-gateway service port                    |
+|--------------+------+-------------------------+------------------------------------------------|
+
+These options are declared in the ~db-gateway.nix~ file under the top level directory.
+
+** api-gateway
+The ~api-gateway~ is based on ~nginx~ and has the following options:
+
+| option         | type | default                  | descriptio                                      |
+|----------------+------+--------------------------+-------------------------------------------------|
+| docRoot        | str  | null                     | the docRoot                                     |
+| uploadHome     | str  | null                     | the home directory for upload                   |
+| logDir         | str  | null                     | the directory for log                           |
+| cacheDir       | str  | null                     | the directory for cache                         |
+| serverName     | bool | true                     | the servername                                  |
+| listenPort     | str  | /var/${processUser}/run  | the port number                                 |
+| uploadMaxSize  | str  | /var/${processUser}/data | the max size to allow for upload                |
+| resolver       |      |                          | the resolver                                    |
+| postgrest-host |      |                          | the dnsName or IP address for postgrest service |
+| postgrest-port |      |                          | the port number for the postgrest service       |
+|----------------+------+--------------------------+-------------------------------------------------|
+
+These options are declared in the ~api-gateway.nix~ file under the top level directory.
+
+** messaging
+The ~messaging~ module is based on ~rabbitmq~ and has the following options:
+
+| option   | type | default                 | descriptio                                 |
+|----------+------+-------------------------+--------------------------------------------|
+| host     | str  | null                    | hostName                                   |
+| port     | str  | null                    | port number                                |
+| user     | str  | null                    | user name to access the messaging engine   |
+| password | str  | null                    | password to access to the messaging engine |
+| topic    | bool | true                    | the default topic name                     |
+| queue    | str  | /var/${processUser}/run | the default queue name                     |
+|----------+------+-------------------------+--------------------------------------------|
+
+These options are declared in the ~messaging.nix~ file under the top level directory.
+
+* Directory Structure
+A directory structure is used to describe the deployment target. It composes with tow parts,
+the first part is the ~site~, the second part is the ~phase~, which could be explained
+in more detail as following:
+- site :: This specify the place where the application will be deployed to
+- phase :: This specify the target environment, it could be ~test~, ~stage~ or ~production~
+
+* Add a new deployment target
+With the above directory structure in mind, do the following if you want to add a new
+deployment target:
+1. make a directory under the ~site~ which specifiy the target place
+2. make a directory ~phase~ under the directory created in step 1
+3. make a directory ~test~, ~stage~ and ~production~ under the directory created in step 2
+4. under each directory created in step 3, add a nix module definition file for each component
+   of the application, for some common component, e.g. DB, API-Gateway or Messaging etc.
+   you can copy a sample nix file from ~site/local/phase/test~ directory as reference.
+
+* How to use it
+Usually, this module will be used as a dependency of another module [[https://github.com/hughjfchen/deploy-packer][deploy-packer]], so you will import
+this module into your ~release.nix~ file, and pass it to the ~deploy-packer~ derivation. Refer to following
+code:
+#+begin_src nix
+{ nativePkgs ? import ./default.nix { }, # the native package set
+pkgs ? import ./cross-build.nix { }
+, # the package set for corss build, we're especially interested in the fully static binary
+site, # the site for release, the binary would deploy to it finally
+phase, # the phase for release, must be "local", "test" and "production"
+}:
+let
+  nPkgs = nativePkgs.pkgs;
+  sPkgs = pkgs.x86-musl64; # for the fully static build
+  lib = nPkgs.lib; # lib functions from the native package set
+  pkgName = "my-runner";
+  innerTarballName = lib.concatStringsSep "." [
+    (lib.concatStringsSep "-" [ pkgName site phase ])
+    "tar"
+    "gz"
+  ];
+
+  # define some utility function for release packing ( code adapted from setup-systemd-units.nix )
+  deploy-packer = import ./deploy-packer.nix {
+    inherit lib;
+    pkgs = nPkgs;
+  };
+
+  # the deployment env
+  my-runner-env =
+    (import ../env/site/${site}/phase/${phase}/env.nix { pkgs = nPkgs; }).env;
+
+  # dependent config
+  my-runner-config = (import ../config/site/${site}/phase/${phase}/config.nix {
+    pkgs = nPkgs;
+    env = my-runner-env;
+  }).config;
+
+  my-runner-config-kv = nPkgs.writeTextFile {
+    name = lib.concatStringsSep "-" [ pkgName "config" ];
+    # generate the key = value format config, refer to the lib.generators for other formats
+    text = (lib.generators.toKeyValue { }) my-runner-config.runner;
+  };
+  my-runner-bin-sh-paths = [
+    # list the runtime dependencies, especially those cannot be determined by nix automatically
+    nPkgs.wget
+    nPkgs.curl
+    nPkgs.xvfb-run
+    nPkgs.jdk11
+    nPkgs.eclipse-mat
+    sPkgs.java-analyzer-runner.java-analyzer-runner-exe
+  ];
+  my-runner-bin-sh = nPkgs.writeShellApplication {
+    name = lib.concatStringsSep "-" [ pkgName "bin" "sh" ];
+    runtimeInputs = my-runner-bin-sh-paths;
+    # wrap the executable, suppose it accept a --config commandl ine option to load the config
+    text = ''
+      ${sPkgs.java-analyzer-runner.java-analyzer-runner-exe.exeName} --config.file="${my-runner-config-kv}" "$@"
+    '';
+  };
+  # following define the service
+  my-runner-service = { lib, pkgs, config, ... }: {
+    options = lib.attrsets.setAttrByPath [ "services" pkgName ] {
+      enable = lib.mkOption {
+        default = true;
+        type = lib.types.bool;
+        description = "enable to generate a config to start the service";
+      };
+      # add extra options here, if any
+    };
+    config = lib.mkIf
+      (lib.attrsets.getAttrFromPath [ pkgName "enable" ] config.services)
+      (lib.attrsets.setAttrByPath [ "systemd" "services" pkgName ] {
+        wantedBy = [ "multi-user.target" ];
+        after = [ "network.target" ];
+        description = "${pkgName} service";
+        serviceConfig = {
+          Type = "forking";
+          User = "${my-runner-env.runner.processUser}";
+          ExecStart =
+            "${my-runner-bin-sh}/bin/${my-runner-bin-sh.name} --command=Start";
+          Restart = "on-failure";
+        };
+      });
+  };
+
+  serviceNameKey = lib.concatStringsSep "." [ pkgName "service" ];
+  serviceNameUnit =
+    lib.attrsets.setAttrByPath [ serviceNameKey ] mk-my-runner-service-unit;
+
+  mk-my-runner-service-unit = nPkgs.writeText serviceNameKey
+    (lib.attrsets.getAttrFromPath [
+      "config"
+      "systemd"
+      "units"
+      serviceNameKey
+      "text"
+    ] (nPkgs.nixos
+      ({ lib, pkgs, config, ... }: { imports = [ my-runner-service ]; })));
+
+in rec {
+  inherit nativePkgs pkgs;
+  mk-my-runner-service-systemd-setup-or-bin-sh =
+    if my-runner-env.runner.isSystemdService then
+      (nPkgs.setupSystemdUnits {
+        namespace = pkgName;
+        units = serviceNameUnit;
+      })
+    else
+      my-runner-bin-sh;
+
+  mk-my-runner-service-systemd-unsetup-or-bin-sh =
+    if my-runner-env.runner.isSystemdService then
+      (deploy-packer.unsetup-systemd-service {
+        namespace = pkgName;
+        units = serviceNameUnit;
+      })
+    else
+      { };
+  # following derivation just to make sure the setup and unsetup will
+  # be packed into the distribute tarball.
+  setup-and-unsetup-or-bin-sh = nPkgs.symlinkJoin {
+    name = "my-runner-setup-and-unsetup";
+    paths = [
+      mk-my-runner-service-systemd-setup-or-bin-sh
+      mk-my-runner-service-systemd-unsetup-or-bin-sh
+    ];
+  };
+
+  mk-my-runner-reference =
+    nPkgs.writeReferencesToFile setup-and-unsetup-or-bin-sh;
+
+  mk-my-runner-deploy-sh = deploy-packer.mk-deploy-sh {
+    env = my-runner-env.runner;
+    payloadPath = setup-and-unsetup-or-bin-sh;
+    inherit innerTarballName;
+    execName = "${my-runner-bin-sh.name}";
+    startCmd = "--command=Start";
+    stopCmd = "--command=Stop";
+  };
+  mk-my-runner-cleanup-sh = deploy-packer.mk-cleanup-sh {
+    env = my-runner-env.runner;
+    payloadPath = setup-and-unsetup-or-bin-sh;
+    inherit innerTarballName;
+    execName = "${my-runner-bin-sh.name}";
+  };
+  mk-my-release-packer = deploy-packer.mk-release-packer {
+    referencePath = mk-my-runner-reference;
+    component = pkgName;
+    inherit site phase innerTarballName;
+    deployScript = mk-my-runner-deploy-sh;
+    cleanupScript = mk-my-runner-cleanup-sh;
+  };
+
+}
+#+end_src
+
+
+* Todos
+Following enhancement may be implemented in the future release for this module:
+- more setting samples for common component of application

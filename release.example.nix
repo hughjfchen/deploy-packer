@@ -16,7 +16,7 @@ let
   ];
 
   # define some utility function for release packing ( code adapted from setup-systemd-units.nix )
-  release-utils = import ./release-utils.nix {
+  deploy-packer = import ./deploy-packer.nix {
     inherit lib;
     pkgs = nPkgs;
   };
@@ -106,7 +106,7 @@ in rec {
 
   mk-my-runner-service-systemd-unsetup-or-bin-sh =
     if my-runner-env.runner.isSystemdService then
-      (release-utils.unsetup-systemd-service {
+      (deploy-packer.unsetup-systemd-service {
         namespace = pkgName;
         units = serviceNameUnit;
       })
@@ -124,7 +124,8 @@ in rec {
 
   mk-my-runner-reference =
     nPkgs.writeReferencesToFile setup-and-unsetup-or-bin-sh;
-  mk-my-runner-deploy-sh = release-utils.mk-deploy-sh {
+
+  mk-my-runner-deploy-sh = deploy-packer.mk-deploy-sh {
     env = my-runner-env.runner;
     payloadPath = setup-and-unsetup-or-bin-sh;
     inherit innerTarballName;
@@ -132,13 +133,13 @@ in rec {
     startCmd = "--command=Start";
     stopCmd = "--command=Stop";
   };
-  mk-my-runner-cleanup-sh = release-utils.mk-cleanup-sh {
+  mk-my-runner-cleanup-sh = deploy-packer.mk-cleanup-sh {
     env = my-runner-env.runner;
     payloadPath = setup-and-unsetup-or-bin-sh;
     inherit innerTarballName;
     execName = "${my-runner-bin-sh.name}";
   };
-  mk-my-release-packer = release-utils.mk-release-packer {
+  mk-my-release-packer = deploy-packer.mk-release-packer {
     referencePath = mk-my-runner-reference;
     component = pkgName;
     inherit site phase innerTarballName;
