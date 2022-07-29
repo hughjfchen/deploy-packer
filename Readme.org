@@ -17,7 +17,7 @@ The packer has following features:
   and its all dependencies into one tarball.
 - incremental :: It packs the build artifactes incrementally. The first time you may get a fully pack tarbal
   and next time it only pack the changed artifactes so can reduce the generated tarball size dramatically.
-- self-extractable tarball :: It uses ~makeelf~ to pack all artifactes as one self-extractable tarball and simplyfy
+- self-extractable tarball :: It uses ~makeself~ to pack all artifactes as one self-extractable tarball and simplyfy
   the deployment process by just copying the generated tarball to the target machine and run it
 - sand-box deployment :: Since the application and its all env and config all packed during build-time, only
   some data or intermedia files generated during run-time will be out of the ~/nix/store~ on the target, the
@@ -28,10 +28,12 @@ This repo provides some helper functions or derivations to a ~nix~ project to he
 simplefy the deployment process. You can follow these steps to incorporate it into your project:
 1. create a ~release.nix~ in your project top level directory
 2. import the [[https://github.com/hughjfchen/deploy-env][deploy-env]] and [[https://github.com/hughjfchen/deploy-config][deploy-config]] respectively
-3. import the [[https://github.com/hughjfchen/deploy-packer][deploy-packer]] and pass the ~env~ and ~config~ as the dependencies
-4. use the ~mk-release-packer~ function within the ~deploy-packer~ to generate a ready-to-run packer
+3. create a ~systemd~ service or a shell wrapper for your application and may use the ~env~ and ~config~
+   as the dependencies
+4. import the [[https://github.com/hughjfchen/deploy-packer][deploy-packer]]
+5. use the ~mk-release-packer~ function within the ~deploy-packer~ to generate a ready-to-run packer
    for the ~env~ and ~config~
-5. run the generated packer and ship the generated tarball to the target
+6. run the generated packer and ship the generated tarball to the target
 
 Following is a ~release.nix~ file for reference:
 #+begin_src nix
@@ -214,7 +216,7 @@ if ! type dirname > /dev/null 2>&1; then
     exit 1
 fi
 
-. "$(dirname "$0")"/cd/common/common.sh
+. "$(dirname "$0")"/common.sh
 
 init_with_root_or_sudo "$0"
 
@@ -240,6 +242,21 @@ nix-build ./release.nix --arg site \""$1"\" --arg phase \""$2"\" --attr "mk-my-r
 "$SCRIPT_ABS_PATH/mk-my-release-packer/bin/mk-release-packer-for-$1-$2"
 
 done_banner "Top level" "project deploy - generic"
+
+#+end_src
+
+* Make ~makeself~ fully quite
+The script within the generated tarbal by ~makeself~ is not fully quiet by default, if you want to run the generated tarbal
+in a fully quiet mode, you can overrite the ~makeself~ derivation in the default ~nixpkgs~ as following:
+#+begin_src nix
+self: prev:
+
+# override the makeself package to make sure quiet mode is the default
+prev.makeself.overrideAttrs (oldAttrs: {
+  fixupPhase = [ oldAttrs.fixupPhase ] ++ [''
+    sed -e "s|quiet=\"n\"|quiet=\"y\"|; s|accept=\"n\"|accept=\"y\"|; s|noprogress=\$NOPROGRESS|noprogress=\"y\"|" -i $out/share/makeself-2.4.2/makeself-header.sh
+  ''];
+})
 
 #+end_src
 
