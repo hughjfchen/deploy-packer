@@ -22,12 +22,30 @@ let
   };
 
   # the deployment env
-  my-runner-env =
-    (import ../env/site/${site}/phase/${phase}/env.nix { pkgs = nPkgs; }).env;
+  my-runner-env = (import
+    (builtins.fetchGit { url = "https://github.com/hughjfchen/deploy-env"; }) {
+      pkgs = nPkgs;
+      modules = [
+        ./site/${site}/phase/${phase}/db.nix
+        ./site/${site}/phase/${phase}/db-gw.nix
+        ./site/${site}/phase/${phase}/api-gw.nix
+        ./site/${site}/phase/${phase}/messaging.nix
+        ./site/${site}/phase/${phase}/runner.nix
+      ];
+    }).env;
 
-  # dependent config
-  my-runner-config = (import ../config/site/${site}/phase/${phase}/config.nix {
+  # app and dependent config
+  my-runner-config = (import (builtins.fetchGit {
+    url = "https://github.com/hughjfchen/deploy-config";
+  }) {
     pkgs = nPkgs;
+    modules = [
+      ./site/${site}/phase/${phase}/db.nix
+      ./site/${site}/phase/${phase}/db-gw.nix
+      ./site/${site}/phase/${phase}/api-gw.nix
+      ./site/${site}/phase/${phase}/messaging.nix
+      ./site/${site}/phase/${phase}/runner.nix
+    ];
     env = my-runner-env;
   }).config;
 
