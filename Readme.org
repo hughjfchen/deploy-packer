@@ -7,108 +7,33 @@ This is one of my ~release framework based on nix~ which contains following:
 - [[https://github.com/hughjfchen/deploy-packer][deploy-packer(that is the repo)]]
 
 * What is this
-This is a NixOS module which evalues to application component config for the deployment target
-based on the specified directory structure.
+This repos provides some helper ~nix~ functions and derivations to help simplefy the deployment process
+for projects which is built based on ~nix~. It serves as a CD tool based on ~nix~ for my own use and I
+hope it would help other.
 
-* What is this for
-This module is the most important building block for the deployment solution based on
-nix. It will provide the config of the each application components for the deployment target machine.
-It needs the [[https://github.com/hughjfchen/deploy-env][deploy-env]] as the input and evalue the result as an input to the [[https://github.com/hughjfchen/deploy-packer][deploy-packer]].
-
-* Options
-This module defines config for some common components of an application.
-
-** db
-The ~db~ module is based on ~postgresql~ and has the following options:
-
-| option             | type | default                  | descriptio                                |
-|--------------------+------+--------------------------+-------------------------------------------|
-| host               | str  | null                     | hostName                                  |
-| port               | int  | 5432                     | DNS Name                                  |
-| database           | str  | null                     | the database nmae                         |
-| dataSchema         | str  | null                     | the schema name for data                  |
-| dataSchemaUser     | bool | true                     | the user name to access the data schema   |
-| dataSchemaPassword | str  | /var/${processUser}/run  | the password to access to the data schema |
-| apiSchema          | str  | /var/${processUser}/data | the schema name for api                   |
-| apiSchemaUser      |      |                          | the user name to access the api schema    |
-| apiSchemaPassword  |      |                          | the password access to the api schema     |
-| anonRole           |      |                          | the ananymous role name                   |
-| jwtSecret          |      |                          | the secret for JWT token                  |
-| jwtLifeTime        |      |                          | the life timeout for the JWT token        |
-|--------------------+------+--------------------------+-------------------------------------------|
-
-These options are declared in the ~db.nix~ file under the top level directory.
-
-** db-gateway
-The ~db-gateway~ is based on ~postgrest~ and has the following options:
-
-| option       | type | default                 | descriptio                                     |
-|--------------+------+-------------------------+------------------------------------------------|
-| db-uri       | str  | null                    | the URI to access the postgresql database      |
-| db-schem     | str  | null                    | the schema name                                |
-| db-anon-role | str  | null                    | the anonymous role name                        |
-| jwt-secret   | str  | null                    | the secret to generate the JWT token           |
-| server-host  | bool | true                    | the db-gateway service host name or IP address |
-| server-port  | str  | /var/${processUser}/run | the db-gateway service port                    |
-|--------------+------+-------------------------+------------------------------------------------|
-
-These options are declared in the ~db-gateway.nix~ file under the top level directory.
-
-** api-gateway
-The ~api-gateway~ is based on ~nginx~ and has the following options:
-
-| option         | type | default                  | descriptio                                      |
-|----------------+------+--------------------------+-------------------------------------------------|
-| docRoot        | str  | null                     | the docRoot                                     |
-| uploadHome     | str  | null                     | the home directory for upload                   |
-| logDir         | str  | null                     | the directory for log                           |
-| cacheDir       | str  | null                     | the directory for cache                         |
-| serverName     | bool | true                     | the servername                                  |
-| listenPort     | str  | /var/${processUser}/run  | the port number                                 |
-| uploadMaxSize  | str  | /var/${processUser}/data | the max size to allow for upload                |
-| resolver       |      |                          | the resolver                                    |
-| postgrest-host |      |                          | the dnsName or IP address for postgrest service |
-| postgrest-port |      |                          | the port number for the postgrest service       |
-|----------------+------+--------------------------+-------------------------------------------------|
-
-These options are declared in the ~api-gateway.nix~ file under the top level directory.
-
-** messaging
-The ~messaging~ module is based on ~rabbitmq~ and has the following options:
-
-| option   | type | default                 | descriptio                                 |
-|----------+------+-------------------------+--------------------------------------------|
-| host     | str  | null                    | hostName                                   |
-| port     | str  | null                    | port number                                |
-| user     | str  | null                    | user name to access the messaging engine   |
-| password | str  | null                    | password to access to the messaging engine |
-| topic    | bool | true                    | the default topic name                     |
-| queue    | str  | /var/${processUser}/run | the default queue name                     |
-|----------+------+-------------------------+--------------------------------------------|
-
-These options are declared in the ~messaging.nix~ file under the top level directory.
-
-* Directory Structure
-A directory structure is used to describe the deployment target. It composes with tow parts,
-the first part is the ~site~, the second part is the ~phase~, which could be explained
-in more detail as following:
-- site :: This specify the place where the application will be deployed to
-- phase :: This specify the target environment, it could be ~test~, ~stage~ or ~production~
-
-* Add a new deployment target
-With the above directory structure in mind, do the following if you want to add a new
-deployment target:
-1. make a directory under the ~site~ which specifiy the target place
-2. make a directory ~phase~ under the directory created in step 1
-3. make a directory ~test~, ~stage~ and ~production~ under the directory created in step 2
-4. under each directory created in step 3, add a nix module definition file for each component
-   of the application, for some common component, e.g. DB, API-Gateway or Messaging etc.
-   you can copy a sample nix file from ~site/local/phase/test~ directory as reference.
+* Features
+The packer has following features:
+- reproducable :: It is based on ~nix~ and inherits its reproducability to build and pack the application
+  and its all dependencies into one tarball.
+- incremental :: It packs the build artifactes incrementally. The first time you may get a fully pack tarbal
+  and next time it only pack the changed artifactes so can reduce the generated tarball size dramatically.
+- self-extractable tarball :: It uses ~makeelf~ to pack all artifactes as one self-extractable tarball and simplyfy
+  the deployment process by just copying the generated tarball to the target machine and run it
+- sand-box deployment :: Since the application and its all env and config all packed during build-time, only
+  some data or intermedia files generated during run-time will be out of the ~/nix/store~ on the target, the
+  deployment can be cleanup and rollbacked very easy.
 
 * How to use it
-Usually, this module will be used as a dependency of another module [[https://github.com/hughjfchen/deploy-packer][deploy-packer]], so you will import
-this module into your ~release.nix~ file, and pass it to the ~deploy-packer~ derivation. Refer to following
-code:
+This repo provides some helper functions or derivations to a ~nix~ project to help
+simplefy the deployment process. You can follow these steps to incorporate it into your project:
+1. create a ~release.nix~ in your project top level directory
+2. import the [[https://github.com/hughjfchen/deploy-env][deploy-env]] and [[https://github.com/hughjfchen/deploy-config][deploy-config]] respectively
+3. import the [[https://github.com/hughjfchen/deploy-packer][deploy-packer]] and pass the ~env~ and ~config~ as the dependencies
+4. use the ~mk-release-packer~ function within the ~deploy-packer~ to generate a ready-to-run packer
+   for the ~env~ and ~config~
+5. run the generated packer and ship the generated tarball to the target
+
+Following is a ~release.nix~ file for reference:
 #+begin_src nix
 { nativePkgs ? import ./default.nix { }, # the native package set
 pkgs ? import ./cross-build.nix { }
@@ -261,8 +186,44 @@ in rec {
 
 }
 #+end_src
+You can even write some scripts to simplyfy the release process further, following is an reference:
+#+begin_src shell
+#!/usr/bin/env bash
 
+if ! type dirname > /dev/null 2>&1; then
+    echo "Not even a linux or macOS, Windoze? We don't support it. Abort."
+    exit 1
+fi
+
+. "$(dirname "$0")"/cd/common/common.sh
+
+init_with_root_or_sudo "$0"
+
+SCRIPT_ABS_PATH=$(turn_to_absolute_path "$0")
+
+begin_banner "Top level" "project deploy - generic"
+
+if [ $# != 2 ]; then
+    echo "usage: $(basename "$0") deployTargetSite releasePhase"
+    exit 125
+fi
+[ -d "$SCRIPT_ABS_PATH/../env/site/$1/phase/$2" ] || (echo "Directory $SCRIPT_ABS_PATH/../env/site/$1/phase/$2 not exists" && exit 126)
+[ -d "$SCRIPT_ABS_PATH/../config/site/$1/phase/$2" ] || (echo "Directory $SCRIPT_ABS_PATH/../config/site/$1/phase/$2 not exists" && exit 126)
+
+set +u
+[ -e "$HOME"/.nix-profile/etc/profile.d/nix.sh ] && . "$HOME"/.nix-profile/etc/profile.d/nix.sh
+set -u
+
+# build the boundle for the specific release target
+nix-build ./release.nix --arg site \""$1"\" --arg phase \""$2"\" --attr "mk-my-release-packer" --out-link "mk-my-release-packer"
+
+# pack the build artifact up with the dependencies
+"$SCRIPT_ABS_PATH/mk-my-release-packer/bin/mk-release-packer-for-$1-$2"
+
+done_banner "Top level" "project deploy - generic"
+
+#+end_src
 
 * Todos
-Following enhancement may be implemented in the future release for this module:
-- more setting samples for common component of application
+Following enhancement may be implemented in the future release for this repos:
+- integrated it into the [[https://github.com/hughjfchen/quick-cook-haskell-project][quick-cook-haskell-project]]
