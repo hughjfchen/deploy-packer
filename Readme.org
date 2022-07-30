@@ -32,7 +32,7 @@ simplefy the deployment process. You can follow these steps to incorporate it in
    as the dependencies
 4. import the [[https://github.com/hughjfchen/deploy-packer][deploy-packer]]
 5. use the ~mk-release-packer~ function within the ~deploy-packer~ to generate a ready-to-run packer
-   for the ~env~ and ~config~
+   for the service or wrapper
 6. run the generated packer and ship the generated tarball to the target
 
 Following is a ~release.nix~ file for reference:
