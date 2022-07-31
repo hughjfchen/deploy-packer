@@ -262,4 +262,4 @@ prev.makeself.overrideAttrs (oldAttrs: {
 
 * Todos
 Following enhancement may be implemented in the future release for this repos:
-- integrated it into the [[https://github.com/hughjfchen/quick-cook-haskell-project][quick-cook-haskell-project]]
+- integrated it into the [[https://github.com/hughjfchen/quick-cook-haskell-project][quick-cook-haskell-project DONE]]
