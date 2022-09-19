@@ -217,13 +217,13 @@ let
           {
             echo "#!/usr/bin/env bash"
             echo "MY_CURRENT_USER=\$(id -nu)"
-            echo "[[ \"$MY_CURRENT_USER\" != \"${env.processUser}\" ]] && echo \"this script should be run with the user name ${env.processUser}\" && exit 127"
+            echo "[[ \"\$MY_CURRENT_USER\" != \"${env.processUser}\" ]] && echo \"this script should be run with the user name ${env.processUser}\" && exit 127"
             echo "exec ${payloadPath}/bin/${execName} ${startCmd} \"\$@\""
           } > ${env.runDir}/start.sh
           {
             echo "#!/usr/bin/env bash"
             echo "MY_CURRENT_USER=\$(id -nu)"
-            echo "[[ \"$MY_CURRENT_USER\" != \"${env.processUser}\" ]] && echo \"this script should be run with the user name ${env.processUser}\" && exit 127"
+            echo "[[ \"\$MY_CURRENT_USER\" != \"${env.processUser}\" ]] && echo \"this script should be run with the user name ${env.processUser}\" && exit 127"
             echo "exec ${payloadPath}/bin/${execName} ${stopCmd} \"\$@\""
           } > ${env.runDir}/stop.sh
           sudo chown -R ${env.processUser}:${env.processUser} "${env.runDir}"
