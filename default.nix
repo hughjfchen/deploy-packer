@@ -198,6 +198,9 @@ let
         sudo chmod 555 /nix
         sudo chmod 555 /nix/store
 
+        # save the user name of the current process
+        MY_CURRENT_USER=$(id -nu)
+
         # setup the systemd service or create a link to the executable
         ${lib.concatStringsSep "\n" (if env.isSystemdService then
           [ "sudo ${payloadPath}/bin/setup-systemd-units" ]
@@ -206,17 +209,21 @@ let
           if [ -e ${env.runDir}/stop.sh ]; then
             # do not do any output, because the app may rely on its output to function properly
             # echo "stopping ${execName}"
-            ${env.runDir}/stop.sh "$@"
+            sudo su - "${env.processUser}" -c '${env.runDir}/stop.sh "$@"'
           fi
 
           # since the payload path changed for every deployment,
           # the start/stop scripts must be generated each deployment
           {
             echo "#!/usr/bin/env bash"
+            echo "MY_CURRENT_USER=\$(id -nu)"
+            echo "[[ \"$MY_CURRENT_USER\" != \"${env.processUser}\" ]] && echo \"this script should be run with the user name ${env.processUser}\" && exit 127"
             echo "exec ${payloadPath}/bin/${execName} ${startCmd} \"\$@\""
           } > ${env.runDir}/start.sh
           {
             echo "#!/usr/bin/env bash"
+            echo "MY_CURRENT_USER=\$(id -nu)"
+            echo "[[ \"$MY_CURRENT_USER\" != \"${env.processUser}\" ]] && echo \"this script should be run with the user name ${env.processUser}\" && exit 127"
             echo "exec ${payloadPath}/bin/${execName} ${stopCmd} \"\$@\""
           } > ${env.runDir}/stop.sh
           sudo chown -R ${env.processUser}:${env.processUser} "${env.runDir}"
@@ -224,7 +231,7 @@ let
           chmod +x ${env.runDir}/start.sh ${env.runDir}/stop.sh
           # do not do any output, because the app may rely on its output to function properly
           # echo "starting the program ${execName}"
-          ${env.runDir}/start.sh "$@"
+          sudo su - "${env.processUser}" -c '${env.runDir}/start.sh "$@"'
           # do not do any output, because the app may rely on its output to function properly
           # echo "check the scripts under ${env.runDir} to start or stop the program."''])}
 
@@ -281,8 +288,8 @@ let
           echo "To start - sudo systemctl start <service-name>"
           echo "Where <service-name> is one of $serviceNames"
         ''] else [''
-          echo "To stop - ${env.runDir}/stop.sh"
-          echo "To start - ${env.runDir}/start.sh"
+          echo "To stop - under the user name ${env.processUser}, run ${env.runDir}/stop.sh"
+          echo "To start - under the user name ${env.processUser}, run ${env.runDir}/start.sh"
         ''])}
 
         read -p "Continue? (Y/N): " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] || exit 129
@@ -291,8 +298,9 @@ let
         # we just stop it before doing the cleanup
         ${lib.concatStringsSep "\n" (if env.isSystemdService then [''
           sudo ${payloadPath}/bin/unsetup-systemd-units
-        ''] else
-          [ "${env.runDir}/stop.sh $@" ])}
+        ''] else [''
+          sudo su - "${env.processUser}" -c '${env.runDir}/stop.sh "$@"'
+        ''])}
 
         for dirToRm in "${env.runDir}" "${env.dataDir}"
         do
