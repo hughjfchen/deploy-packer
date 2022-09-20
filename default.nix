@@ -26,7 +26,7 @@ let
           unitFilesToRemove+=("$unitDir/${name}")
           ${
             lib.concatStringsSep "\n" (map (unit: ''
-              unitWantsToRemove+=("$unitDir/${unit}.wants")
+              unitWantsToRemove+=("$unitDir/${unit}.wants/${name}")
             '') file.wanted-by or [ ])
           }
         fi
