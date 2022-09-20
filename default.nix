@@ -182,10 +182,30 @@ let
         # create directories
         for dirToMk in "${env.runDir}" "${env.dataDir}"
         do
-          if [ ! -d "$dirToMk" ]; then
-             sudo UMASK=0022 mkdir -p "$dirToMk"
-             sudo chown -R ${env.processUser}:${env.processUser} "$dirToMk"
+          FIRST_C=$(echo "$dirToMk" | cut -c1)
+
+          if [ "X$FIRST_C" != "X/" ]; then
+            echo "the path must be a absolute path."
+            exit 111
           fi
+
+          if [ -d "$dirToMk" ] && [ $(stat --format '%U' "$dirToMk") != "${env.processUser}" ]; then
+            echo "the path $dirToMk exists but owner is not the process user ${env.processUser}, abort."
+            exit 110
+          fi
+
+          NONEXIST_TOP_PATH="$dirToMk"
+          NONEXIST_LAST_PATH=""
+          while [ "X$NONEXIST_TOP_PATH" != "X" ] && [ ! -d "$NONEXIST_TOP_PATH" ]
+          do
+            NONEXIST_LAST_PATH=$(echo "$NONEXIST_TOP_PATH" | awk -F'/' '{print $NF}')
+            NONEXIST_TOP_PATH=$(echo "$NONEXIST_TOP_PATH" | sed 's:\(.*\)/\(.*\)$:\1:g')
+          done
+
+          [[ "X$NONEXIST_LAST_PATH" != "X" ]] && NONEXIST_TOP_PATH=$(echo "$NONEXIST_TOP_PATH/$NONEXIST_LAST_PATH")
+
+          sudo mkdir -p "$dirToMk"
+          sudo chown -R ${env.processUser}:${env.processUser} "$NONEXIST_TOP_PATH"
         done
 
         # now unpack(note we should preserve the /nix/store directory structure)
@@ -306,9 +326,30 @@ let
 
         for dirToRm in "${env.runDir}" "${env.dataDir}"
         do
-          if [ -d "$dirToRm" ]; then
-             sudo rm -fr "$dirToRm"
+          FIRST_C=$(echo "$dirToRm" | cut -c1)
+
+          if [ "X$FIRST_C" != "X/" ]; then
+            echo "the path must be a absolute path."
+            exit 111
           fi
+
+          if [ -d "$dirToRm" ] && [ $(stat --format '%U' "$dirToRm") != "${env.processUser}" ]; then
+            echo "the path $dirToRm exists but owner is not the process user ${env.processUser}, abort."
+            exit 110
+          fi
+
+          EXIST_TOP_PATH="$dirToRm"
+          EXIST_LAST_PATH=""
+          while [ "X$EXIST_TOP_PATH" != "X" ] && [ $(stat --format '%U' "$EXIST_TOP_PATH") == "${env.processUser}" ]
+          do
+            EXIST_LAST_PATH=$(echo "$EXIST_TOP_PATH" | awk -F'/' '{print $NF}')
+            EXIST_TOP_PATH=$(echo "$EXIST_TOP_PATH" | sed 's:\(.*\)/\(.*\)$:\1:g')
+          done
+
+          [[ "X$EXIST_LAST_PATH" != "X" ]] && EXIST_TOP_PATH=$(echo "$EXIST_TOP_PATH/$EXIST_LAST_PATH")
+
+          sudo rm -fr "$EXIST_TOP_PATH"
+
         done
 
         # FOLLOWING IS REALLY DANGEROUS!!! DO NOT DO THAT!!!
