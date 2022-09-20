@@ -194,7 +194,9 @@ let
         [ "X$USER_PWD" != "X" ] && MYPWD="$USER_PWD/$(dirname $0)" || MYPWD="$(dirname $0)"
 
         sudo tar zPxf "$MYPWD"/${innerTarballName}
-        sudo chown -R ${env.processUser}:${env.processUser} /nix
+
+        # the /nix should belong to root
+        sudo chown -R root:root /nix
         sudo chmod 555 /nix
         sudo chmod 555 /nix/store
 
@@ -309,17 +311,20 @@ let
           fi
         done
 
+        # FOLLOWING IS REALLY DANGEROUS!!! DO NOT DO THAT!!!
+        # BECAUSE SOME DEPENDENCIES ARE SHARED BY MORE THAN ONE PACKAGE!!!
+        # YOU HAVE BEEN WARNED!!!
         # do we need to delete the program and all its dependencies in /nix/store?
         # we will do that for now
 
         # determine the PWD
-        [ "X$USER_PWD" != "X" ] && MYPWD="$USER_PWD/$(dirname $0)" || MYPWD="$(dirname $0)"
+        # [ "X$USER_PWD" != "X" ] && MYPWD="$USER_PWD/$(dirname $0)" || MYPWD="$(dirname $0)"
 
-        if [ -f "$MYPWD/${innerTarballName}" ]; then
-          tar zPtvf "$MYPWD/${innerTarballName}"|awk '{print $NF}'|grep '/nix/store/'|awk -F'/' '{print "/nix/store/" $4}'|sort|uniq|xargs sudo rm -fr
-        else
-          echo "cannot find the release tarball $MYPWD/${innerTarballName}, skip cleaning the distribute files."
-        fi
+        # if [ -f "$MYPWD/${innerTarballName}" ]; then
+        #   tar zPtvf "$MYPWD/${innerTarballName}"|awk '{print $NF}'|grep '/nix/store/'|awk -F'/' '{print "/nix/store/" $4}'|sort|uniq|xargs sudo rm -fr
+        # else
+        #   echo "cannot find the release tarball $MYPWD/${innerTarballName}, skip cleaning the distribute files."
+        # fi
 
         # well, shall we remove the user and group? maybe not
         # we will do that for now.
