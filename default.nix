@@ -340,7 +340,7 @@ let
 
           EXIST_TOP_PATH="$dirToRm"
           EXIST_LAST_PATH=""
-          while [ "X$EXIST_TOP_PATH" != "X" ] && [ $(stat --format '%U' "$EXIST_TOP_PATH") == "${env.processUser}" ]
+          while [ "X$EXIST_TOP_PATH" != "X" ] && [ -d "$EXIST_TOP_PATH" ] && [ $(stat --format '%U' "$EXIST_TOP_PATH") == "${env.processUser}" ]
           do
             EXIST_LAST_PATH=$(echo "$EXIST_TOP_PATH" | awk -F'/' '{print $NF}')
             EXIST_TOP_PATH=$(echo "$EXIST_TOP_PATH" | sed 's:\(.*\)/\(.*\)$:\1:g')
