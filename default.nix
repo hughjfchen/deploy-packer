@@ -302,13 +302,13 @@ let
         echo "This script will also ERASE all data generated during the program running."
         echo "That means all data generated during the program running will be lost and cannot be restored."
         echo "Think twice before you answer Y nad hit ENTER. You have been warned."
-        echo "If your are looking for how to start/start the program,"
+        echo "If your are looking for how to start/stop the program,"
         echo "Refer to the following command"
         ${lib.concatStringsSep "\n" (if env.isSystemdService then [''
           serviceNames=$(awk 'BEGIN { FS="\"" } /unitsToStop\+=\(/ {print $2}' ${payloadPath}/bin/unsetup-systemd-units)
           echo "To stop - sudo systemctl stop <service-name>"
           echo "To start - sudo systemctl start <service-name>"
-          echo "Where <service-name> is one of $serviceNames"
+          echo "Where <service-name> is $serviceNames"
         ''] else [''
           echo "To stop - under the user name ${env.processUser}, run ${env.runDir}/stop.sh"
           echo "To start - under the user name ${env.processUser}, run ${env.runDir}/start.sh"
