@@ -206,6 +206,7 @@ let
 
           sudo mkdir -p "$dirToMk"
           sudo chown -R ${env.processUser}:${env.processUser} "$NONEXIST_TOP_PATH"
+          sudo chmod -R 755 "$NONEXIST_TOP_PATH"
         done
 
         # now unpack(note we should preserve the /nix/store directory structure)
