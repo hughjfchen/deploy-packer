@@ -189,24 +189,32 @@ let
             exit 111
           fi
 
-          if [ -d "$dirToMk" ] && [ $(stat --format '%U' "$dirToMk") != "${env.processUser}" ]; then
-            echo "the path $dirToMk exists but owner is not the process user ${env.processUser}, abort."
-            exit 110
+          if [ -d "$dirToMk" ]; then
+            # directory exists
+            if [ $(stat --format '%U' "$dirToMk") != "${env.processUser}" ]; then
+              # but belongs to other users, that should be an error
+              echo "the path $dirToMk exists but owner is not the process user ${env.processUser}, abort."
+              exit 110
+            else
+              # directory already exists and belongs to the process user
+              # no need to take action
+            fi
+          else
+            # directory not exists
+            NONEXIST_TOP_PATH="$dirToMk"
+            NONEXIST_LAST_PATH=""
+            while [ "X$NONEXIST_TOP_PATH" != "X" ] && [ ! -d "$NONEXIST_TOP_PATH" ]
+            do
+              NONEXIST_LAST_PATH=$(echo "$NONEXIST_TOP_PATH" | awk -F'/' '{print $NF}')
+              NONEXIST_TOP_PATH=$(echo "$NONEXIST_TOP_PATH" | sed 's:\(.*\)/\(.*\)$:\1:g')
+            done
+
+            [[ "X$NONEXIST_LAST_PATH" != "X" ]] && NONEXIST_TOP_PATH=$(echo "$NONEXIST_TOP_PATH/$NONEXIST_LAST_PATH")
+
+            sudo mkdir -p "$dirToMk"
+            sudo chown -R ${env.processUser}:${env.processUser} "$NONEXIST_TOP_PATH"
+            sudo chmod -R 755 "$NONEXIST_TOP_PATH"
           fi
-
-          NONEXIST_TOP_PATH="$dirToMk"
-          NONEXIST_LAST_PATH=""
-          while [ "X$NONEXIST_TOP_PATH" != "X" ] && [ ! -d "$NONEXIST_TOP_PATH" ]
-          do
-            NONEXIST_LAST_PATH=$(echo "$NONEXIST_TOP_PATH" | awk -F'/' '{print $NF}')
-            NONEXIST_TOP_PATH=$(echo "$NONEXIST_TOP_PATH" | sed 's:\(.*\)/\(.*\)$:\1:g')
-          done
-
-          [[ "X$NONEXIST_LAST_PATH" != "X" ]] && NONEXIST_TOP_PATH=$(echo "$NONEXIST_TOP_PATH/$NONEXIST_LAST_PATH")
-
-          sudo mkdir -p "$dirToMk"
-          sudo chown -R ${env.processUser}:${env.processUser} "$NONEXIST_TOP_PATH"
-          sudo chmod -R 755 "$NONEXIST_TOP_PATH"
         done
 
         # now unpack(note we should preserve the /nix/store directory structure)
@@ -334,22 +342,27 @@ let
             exit 111
           fi
 
-          if [ -d "$dirToRm" ] && [ $(stat --format '%U' "$dirToRm") != "${env.processUser}" ]; then
-            echo "the path $dirToRm exists but owner is not the process user ${env.processUser}, abort."
+          if [ -d "$dirToRm" ]; then
+            if [ $(stat --format '%U' "$dirToRm") != "${env.processUser}" ]; then
+              echo "the path $dirToRm exists but owner is not the process user ${env.processUser}, abort."
+              exit 110
+            else
+              EXIST_TOP_PATH="$dirToRm"
+              EXIST_LAST_PATH=""
+              while [ "X$EXIST_TOP_PATH" != "X" ] && [ -d "$EXIST_TOP_PATH" ] && [ $(stat --format '%U' "$EXIST_TOP_PATH") == "${env.processUser}" ]
+              do
+                EXIST_LAST_PATH=$(echo "$EXIST_TOP_PATH" | awk -F'/' '{print $NF}')
+                EXIST_TOP_PATH=$(echo "$EXIST_TOP_PATH" | sed 's:\(.*\)/\(.*\)$:\1:g')
+              done
+
+              [[ "X$EXIST_LAST_PATH" != "X" ]] && EXIST_TOP_PATH=$(echo "$EXIST_TOP_PATH/$EXIST_LAST_PATH")
+
+              sudo rm -fr "$EXIST_TOP_PATH"
+            fi
+          else
+            echo "the path $dirToRm not exists, abort."
             exit 110
           fi
-
-          EXIST_TOP_PATH="$dirToRm"
-          EXIST_LAST_PATH=""
-          while [ "X$EXIST_TOP_PATH" != "X" ] && [ -d "$EXIST_TOP_PATH" ] && [ $(stat --format '%U' "$EXIST_TOP_PATH") == "${env.processUser}" ]
-          do
-            EXIST_LAST_PATH=$(echo "$EXIST_TOP_PATH" | awk -F'/' '{print $NF}')
-            EXIST_TOP_PATH=$(echo "$EXIST_TOP_PATH" | sed 's:\(.*\)/\(.*\)$:\1:g')
-          done
-
-          [[ "X$EXIST_LAST_PATH" != "X" ]] && EXIST_TOP_PATH=$(echo "$EXIST_TOP_PATH/$EXIST_LAST_PATH")
-
-          sudo rm -fr "$EXIST_TOP_PATH"
 
         done
 
@@ -357,7 +370,7 @@ let
         # BECAUSE SOME DEPENDENCIES ARE SHARED BY MORE THAN ONE PACKAGE!!!
         # YOU HAVE BEEN WARNED!!!
         # do we need to delete the program and all its dependencies in /nix/store?
-        # we will do that for now
+        # we will not do that for now
 
         # determine the PWD
         # [ "X$USER_PWD" != "X" ] && MYPWD="$USER_PWD/$(dirname $0)" || MYPWD="$(dirname $0)"
