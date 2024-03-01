@@ -197,7 +197,15 @@ let
               exit 110
             else
               # directory already exists and belongs to the process user
-              # no need to take action
+              # check if we could create files under this directory
+              if ! sudo su - "${env.processUser}" -c "touch "$dirToMk"/.check.if.we.could.create.files.under.this.directory > /dev/null 2>&1"; then
+                echo "Directory $dirToMk exists, owned by ${env.processUser}, however, ${env.processUser} could not create files under this dir."
+                echo "Please check the mode of the whole directory tree."
+                exit 111
+              else
+                # clean up the check
+                rm -fr "$dirToMk"/.check.if.we.could.create.files.under.this.directory
+              fi
             fi
           else
             # directory not exists
@@ -214,6 +222,18 @@ let
             sudo mkdir -p "$dirToMk"
             sudo chown -R ${env.processUser}:${env.processUser} "$NONEXIST_TOP_PATH"
             sudo chmod -R 755 "$NONEXIST_TOP_PATH"
+
+            # Even after having changed the owner to the user from the top non-exist directory
+            # We still cannot make sure the user can create files under the given directory
+            # check if we could create files under this directory
+            if ! sudo su - "${env.processUser}" -c "touch "$dirToMk"/.check.if.we.could.create.files.under.this.directory > /dev/null 2>&1"; then
+              echo "Directory $dirToMk created and change the owner to {env.processUser}, however, ${env.processUser} could not create files under this dir."
+              echo "Please check the mode of the whole directory tree from $NONEXIST_TOP_PATH and make sure the user has write permission to all directories"
+              exit 111
+            else
+              # clean up the check
+              rm -fr "$dirToMk"/.check.if.we.could.create.files.under.this.directory
+            fi
           fi
         done
 
@@ -360,8 +380,7 @@ let
               sudo rm -fr "$EXIST_TOP_PATH"
             fi
           else
-            echo "the path $dirToRm not exists, abort."
-            exit 110
+            echo "the path $dirToRm not exists, skip."
           fi
 
         done
